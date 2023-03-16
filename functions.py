@@ -66,8 +66,8 @@ def findEIP(bufferloc, lenCrash, host, port):
     msgOffset = stream.read().strip()
     stream.close()
     print msgOffset
-    offset = msgOffset.split()
-    return len(inputBuffer)
+    offset = msgOffset.split()[-1]
+    return offset
 
 def query_yes_no(question, default="yes"):
     """Ask a yes/no question via raw_input() and return their answer.
